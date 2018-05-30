@@ -3,92 +3,146 @@ package spark
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
-	"net/url"
+	"fmt"
 )
 
-const WebhookUrl = "https://api.ciscospark.com/v1/webhooks"
+const WebhooksURL = "https://api.ciscospark.com/v1/webhooks"
 
 type Webhook struct {
-	Id        string                 `json:"id"`
+	ID        string                 `json:"id"`
 	Name      string                 `json:"name"`
-	TargetUrl string                 `json:"targetUrl"`
+	TargetURL string                 `json:"targetUrl"`
 	Resource  string                 `json:"resource"`
 	Event     string                 `json:"event"`
 	Filter    string                 `json:"filter,omitempty"`
 	Secret    string                 `json:"secret,omitempty"`
-	OrgId     string                 `json:"orgId,omitempty"`
+	OrgID     string                 `json:"orgId,omitempty"`
 	CreatedBy string                 `json:"createdBy,omitempty"`
-	AppId     string                 `json:"appId,omitempty"`
+	AppID     string                 `json:"appId,omitempty"`
 	OwnedBy   string                 `json:"ownedBy,omitempty"`
 	Status    string                 `json:"active,omitempty"`
-	ActorId   string                 `json:"actorId,omitempty"`
-	Data      map[string]interface{} `json:"data,omitempty"`
+	ActorID   string                 `json:"actorId,omitempty"`
+	Data      map[string]interface{} `json:"data,omitempty"` // TODO: what is this?  Is it needed? Not in the docs
 }
 
-// https://developer.ciscospark.com/resource-webhooks.html
-
-type Webhooks struct {
-	Items []Webhook
+type WebhookList struct {
+	Items []*Webhook
 }
 
-func (s *Spark) ListWebhooks(uv *url.Values) ([]Webhook, error) {
-	var w Webhooks
-	// parameter: max is the only accepted right now.
-	// https://developer.ciscospark.com/endpoint-webhooks-get.html
+type NewWebhook struct {
+	Name      string `json:"name"`             // required
+	TargetURL string `json:"targetUrl"`        // required
+	Resource  string `json:"resource"`         // required
+	Event     string `json:"event"`            // required
+	Filter    string `json:"filter,omitempty"` // optional
+	Secret    string `json:"secret,omitempty"` // optional
+}
 
-	bytes, err := s.GetRequest(WebhookUrl, uv)
-	if err != nil {
-		return w.Items, err
+// https://developer.webex.com/endpoint-webhooks-webhookId-get.html
+func (c *client) GetWebhook(webhookID string) (*Webhook, error) {
+	if webhookID == "" {
+		return nil, fmt.Errorf("no webhook ID specified")
 	}
 
-	err = json.Unmarshal(bytes, &w)
-	return w.Items, err
+	resp, err := c.getRequest(fmt.Sprintf("%s/%s", WebhooksURL, webhookID), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var webhook Webhook
+	if err := json.Unmarshal(resp, &webhook); err != nil {
+		return nil, err
+	}
+	return &webhook, err
 }
 
-func (s *Spark) CreateWebhook(w Webhook) (Webhook, error) {
-	var rwh Webhook
+// https://developer.webex.com/endpoint-webhooks-post.html
+func (c *client) CreateWebhook(w *NewWebhook) (*Webhook, error) {
+	if w == nil {
+		return nil, fmt.Errorf("nil webhook")
+	}
 	if w.Name == "" {
-		return rwh, errors.New("You must specify a name for the webhook")
+		return nil, fmt.Errorf("no webhook name specified")
 	}
-	if w.TargetUrl == "" {
-		return rwh, errors.New("You must specify a target URL for the webhook")
+	if w.TargetURL == "" {
+		return nil, fmt.Errorf("no webhook target URL specified")
 	}
-	// see: https://developer.ciscospark.com/webhooks-explained.html
-	// resource should be the plural form of a spark api:
-	// * messages
-	// * memberships
-	// * rooms
-	// * teams
 	if w.Resource == "" {
-		return rwh, errors.New("You must specify a Resource for the webhook")
+		return nil, fmt.Errorf("no webhook resource specified")
 	}
-
-	// created, updated, deleted, or all
 	if w.Event == "" {
-		return rwh, errors.New("You should specify an event for the webhook resource")
+		return nil, fmt.Errorf("no webhook event specified")
 	}
 
-	/* generally, you'll probably want:
-	{"resource" : "messages", "event" : "created" }
-	*/
 	b := new(bytes.Buffer)
-	json.NewEncoder(b).Encode(w)
-	bytes, err := s.PostRequest(WebhookUrl, b)
+	if err := json.NewEncoder(b).Encode(w); err != nil {
+		return nil, err
+	}
+	resp, err := c.postRequest(WebhooksURL, b)
 
 	if err != nil {
-		return rwh, err
+		return nil, err
 	}
-	err = json.Unmarshal(bytes, &rwh)
-	return rwh, err
+
+	var rwh Webhook
+	err = json.Unmarshal(resp, &rwh)
+	return &rwh, err
 }
 
-func (s *Spark) DeleteWebhook(w Webhook) error {
-	if w.Id == "" {
-		return errors.New("Must specify the Webhook ID to delete")
+// https://developer.webex.com/endpoint-webhooks-webhookId-put.html
+func (c *client) UpdateWebhook(w *Webhook) (*Webhook, error) {
+	if w == nil {
+		return nil, fmt.Errorf("nil webhook")
+	}
+	if w.ID == "" {
+		return nil, fmt.Errorf("no webhook ID specified")
+	}
+	if w.Name == "" {
+		return nil, fmt.Errorf("no webhook name specified")
+	}
+	if w.TargetURL == "" {
+		return nil, fmt.Errorf("no webhook target URL specified")
+	}
+	// weirdly, Resource and Event aren't required, despite the fact that they are required for *new* webhooks
+
+	b := new(bytes.Buffer)
+	if err := json.NewEncoder(b).Encode(w); err != nil {
+		return nil, err
+	}
+	resp, err := c.putRequest(fmt.Sprintf("%s/%s", WebhooksURL, w.ID), b)
+	if err != nil {
+		return nil, err
 	}
 
-	url := WebhookUrl + "/" + w.Id
-	_, err := s.DeleteRequest(url)
+	var rwh Webhook
+	err = json.Unmarshal(resp, &rwh)
+	return &rwh, err
+}
+
+// https://developer.webex.com/endpoint-webhooks-webhookId-delete.html
+func (c *client) DeleteWebhook(hookID string) error {
+	if hookID == "" {
+		return fmt.Errorf("no webhook ID specified")
+	}
+
+	_, err := c.deleteRequest(fmt.Sprintf("%s/%s", WebhooksURL, hookID))
 	return err
+}
+
+// https://developer.webex.com/endpoint-webhooks-get.html
+func (c *client) ListWebhooks(max int) ([]*Webhook, error) {
+	resp, reqErr := c.getRequestWithPaging(WebhooksURL, nil, max)
+	if reqErr != nil && len(resp) == 0 { // if we got an error *and* results, parse them and return them
+		return nil, reqErr
+	}
+
+	var webhooks []*Webhook
+	for _, r := range resp {
+		var w WebhookList
+		if jsonErr := json.Unmarshal(r, &w); jsonErr != nil {
+			return webhooks, fmt.Errorf("%v && %v", reqErr, jsonErr)
+		}
+		webhooks = append(webhooks, w.Items...)
+	}
+	return webhooks, reqErr
 }
