@@ -1,69 +1,76 @@
-# spark
-Golang client for Cisco Spark API
+# Spark
+Golang client for the Cisco Spark API
 
 ## Supported API calls
-
 ### Rooms
-Method | Description | Example
---- | --- | --- 
-ListRooms | Lists Rooms Available | 
-GetRoom | Gets a Room with a Room ID |
-GetRoomWithName | Gets the first Room where Name matches|
+Method | Description
+--- | ---
+GetRoom | Gets a room's details by ID
+GetRoomByName | Gets the first room that matches the provided name
+ListRooms | Lists accessible rooms
+CreateRoom | Creates a new room
+UpdateRoomName | Updates a room's name
+DeleteRoom | Deletes a room by ID
 
 ### Messages
-Method | Description | Example
---- | --- | --- 
-ListMessages | Lists all messages in a Room |
-CreateMessage | Creates a message to a Room |
-GetMessage | Gets a message by Id |
+Method | Description
+--- | --- 
+GetMessage | Gets a message by ID
+ListMessages | Lists messages in a room
+CreateMessage | Sends a new message to a room or directly to person
+DeleteMessage | Deletes a message by ID
+
+### Person
+Method | Description
+--- | --- 
+GetPerson | Gets a person's details by ID
+ListPeople | Lists existing people (non-admins require email or display name)
+CreatePerson | Creates a new person (admin only) 
+UpdatePerson | Updates an existing person by ID (admin only) 
+DeletePerson | Deletes an existing person by ID (admin only) 
 
 ### Webhooks
-Method | Description | Example
---- | --- | --- 
-CreateWebhook | Creates a new webhook |
-ListWebhooks | Lists existing webhooks |
-DeleteWebhook | Deletes a webhook given a webhook ID | 
-## Example
+Method | Description
+--- | --- 
+GetWebhook | Gets a webhook's details by ID
+ListWebhooks | Lists existing webhooks
+CreateWebhook | Creates a new webhook
+UpdateWebhook | Updates an existing webhook by ID
+DeleteWebhook | Deletes an existing webhook by ID 
 
+## Example
 ```go
 package main
 
 import (
-  "github.com/vallard/spark"
+    "github.com/kaedys/spark"
 )
 
 const (
-  token       = "your-spark-access-id"
-  roomName = "your-spark-room-name"
+    token    = "your-spark-access-id"
+    roomName = "your-spark-room-name"
 )
 
 func main() {
-  s := spark.New(token)
-  
-  // Get the room ID of the room name
-  room, err := s.GetRoomWithName(roomName)
-  
-  if err != nil {
-  	panic(err)
-  }
-  
-  // Create the message we want to send
-  m := spark.Message{
-  	RoomId: room.Id
-  	Markdown: "# Big Message right here!"
-  }
-  
-  // Post the message to the room
-  _, err := s.CreateMessage(m)
-  
-  if err != nil {
-    panic(err)
-  }
+    s := spark.New(token)
+    
+    // Get the room ID by name
+    room, err := s.GetRoomByName(roomName)
+    if err != nil {
+    	panic(err)
+    }
+    
+    // Define the message we want to send
+    m := &spark.NewMessage{
+    	RoomID:   room.ID,
+    	Markdown: "# Big Message right here!",
+    }
+    
+    // Post the message to the room
+    if _, err := s.CreateMessage(m); err != nil {
+        panic(err)
+    }
 }
 ```
 
-Read the test cases for more ways to use the library.
-
-## Inspiration
-
-[bluele/slack](https://github.com/bleule/slack) 
+Based on [vallard/spark](https://github.com/vallard/spark), which was inspired by [bluele/slack](https://github.com/bleule/slack). 

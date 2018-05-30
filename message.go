@@ -27,6 +27,7 @@ type MessageList struct {
 	Items []*Message
 }
 
+// NOTE: One and *only* one of RoomID, ToPersonID, or ToPersonEmail must be set for calls to CreateMessage.
 type NewMessage struct {
 	RoomID        string   `json:"roomId,omitempty"`
 	ToPersonID    string   `json:"toPersonId,omitempty"`
